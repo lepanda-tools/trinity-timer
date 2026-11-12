@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>バトルトリニティ タイマー（自動同期版）</title>
+<style>
+:root{
+  --bg:#0f1220;--panel:#181c2e;--panel2:#20253b;--line:#2d3350;--text:#e8eaf3;--muted:#8a90ad;
+  --gold:#f2c14e;--blue:#5aa9ff;--green:#4fd18b;--red:#ff6b6b;--purple:#b48cff;--white:#cfd5ea;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic UI",system-ui,sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:16px;display:grid;grid-template-columns:1.25fr 1fr;gap:16px}
+@media(max-width:860px){.wrap{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+h1{font-size:15px;margin:0 0 4px;color:var(--muted);font-weight:600;letter-spacing:.05em}
+.clock{font-variant-numeric:tabular-nums;font-size:clamp(72px,14vw,140px);font-weight:800;line-height:1;text-align:center;margin:8px 0 4px;letter-spacing:.02em}
+.clock.warn{color:var(--gold)} .clock.end{color:var(--red)}
+.sub{text-align:center;color:var(--muted);font-size:13px;min-height:18px}
+.bar{height:8px;background:var(--panel2);border-radius:99px;overflow:hidden;margin:12px 0 4px}
+.bar>div{height:100%;background:linear-gradient(90deg,var(--blue),var(--gold));width:0%}
+.next{margin-top:14px;background:var(--panel2);border-radius:12px;padding:14px;display:flex;align-items:center;gap:14px;min-height:84px}
+.next .cd{font-size:44px;font-weight:800;font-variant-numeric:tabular-nums;min-width:96px;text-align:center}
+.next .lbl{font-size:20px;font-weight:700}
+.next .meta{font-size:13px;color:var(--muted);margin-top:2px}
+.next.flash{animation:flash .6s ease 3}
+@keyframes flash{50%{background:#3a3f63}}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+button{font:inherit;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 14px;cursor:pointer;font-weight:600}
+button:hover{border-color:#4a5280}
+button.primary{background:var(--blue);border-color:var(--blue);color:#06101f;flex:1;min-width:140px;font-size:17px}
+button.primary.running{background:var(--gold);border-color:var(--gold)}
+.sync{display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap}
+.sync input{width:90px;font:inherit;font-size:16px;padding:9px 10px;border-radius:10px;border:1px solid var(--line);background:#0b0e19;color:var(--text);text-align:center}
+.hint{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.6}
+kbd{background:#0b0e19;border:1px solid var(--line);border-radius:5px;padding:0 5px;font-size:11px}
+.tl{list-style:none;margin:0;padding:0;max-height:560px;overflow:auto}
+.tl li{display:grid;grid-template-columns:58px 14px 1fr;gap:10px;align-items:center;padding:8px 6px;border-bottom:1px solid var(--line);font-size:14px}
+.tl li .t{font-variant-numeric:tabular-nums;font-weight:700;text-align:right}
+.tl li .dot{width:10px;height:10px;border-radius:50%}
+.tl li .d small{display:block;color:var(--muted);font-size:12px}
+.tl li.done{opacity:.35}
+.tl li.cur{background:var(--panel2);border-radius:8px}
+.tl li.off .d{text-decoration:line-through;color:var(--muted)}
+.c-rush{background:var(--white)} .c-bonus{background:var(--gold)} .c-golem{background:var(--green)} .c-tip{background:var(--purple)} .c-end{background:var(--red)}
+.settings{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-size:14px;margin-top:6px}
+.settings label{display:flex;align-items:center;gap:8px;cursor:pointer}
+.settings select,.settings input[type=range]{font:inherit;background:#0b0e19;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:4px}
+.row{display:flex;align-items:center;gap:8px}
+h2{font-size:14px;margin:0 0 10px;color:var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:10px;font-size:12px;color:var(--muted);margin-bottom:8px}
+.legend span{display:flex;align-items:center;gap:5px}
+.legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.src{font-size:11px;color:var(--muted);line-height:1.6;margin-top:12px}
+.src a{color:var(--muted)}
+
+.auto{margin-top:16px}
+.auto .pv{display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px}
+#capWrap{position:relative;background:#000;border-radius:8px;overflow:hidden;display:none;cursor:crosshair;user-select:none}
+#capCanvas{width:100%;display:block}
+#selBox{position:absolute;border:2px solid var(--gold);background:rgba(242,193,78,.15);pointer-events:none;display:none}
+#cropCanvas{background:#fff;border-radius:6px;max-width:100%;height:48px;image-rendering:pixelated}
+.ocr{display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.ocr b{color:var(--text);font-size:18px;font-variant-numeric:tabular-nums}
+.pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:12px;background:var(--panel2);border:1px solid var(--line)}
+.pill.ok{color:var(--green);border-color:var(--green)} .pill.ng{color:var(--red);border-color:var(--red)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section>
+    <div class="card">
+      <h1>バトルトリニティ 残り時間（自動同期版）</h1>
+      <div class="clock" id="clock">5:30</div>
+      <div class="sub" id="status">試合開始と同時にスタート（<kbd>Space</kbd>）</div>
+      <div class="bar"><div id="prog"></div></div>
+      <div class="next" id="next">
+        <div class="cd" id="nextCd">--</div>
+        <div><div class="lbl" id="nextLbl">次のイベント</div><div class="meta" id="nextMeta"></div></div>
+      </div>
+      <div class="btns">
+        <button class="primary" id="startBtn">スタート</button>
+        <button id="minus">−1秒</button>
+        <button id="plus">+1秒</button>
+        <button id="reset">リセット</button>
+      </div>
+      <div class="sync">
+        <span style="font-size:13px;color:var(--muted)">ゲーム内の残り時間に合わせる</span>
+        <input id="syncIn" placeholder="4:12" inputmode="numeric">
+        <button id="syncBtn">合わせる</button>
+      </div>
+      <div class="hint">
+        <kbd>Space</kbd> スタート/一時停止　<kbd>←</kbd><kbd>→</kbd> ±1秒　<kbd>R</kbd> リセット　<kbd>S</kbd> 同期欄へ<br>
+        ゲーム画面の残り時間とずれたら、「合わせる」に数字を入れて Enter（例: 412 → 4:12）。
+      </div>
+    </div>
+
+
+    <div class="card auto">
+      <h2>自動同期（ゲーム画面の残り時間を読み取り）</h2>
+      <div class="btns" style="margin-top:0">
+        <button id="capBtn">① ゲーム画面を共有</button>
+        <button id="selBtn" disabled>② 残り時間の範囲を選び直す</button>
+        <label class="row" style="font-size:13px"><input type="checkbox" id="autoOn" checked> 自動スタート・同期</label>
+      </div>
+      <div class="pv">
+        <div id="capWrap"><canvas id="capCanvas"></canvas><div id="selBox"></div></div>
+        <div class="ocr">
+          <canvas id="cropCanvas" width="10" height="10"></canvas>
+          <span>読み取り: <b id="ocrVal">--</b></span>
+          <span id="ocrState" class="pill">未接続</span>
+        </div>
+        <div class="settings" style="grid-template-columns:1fr 1fr">
+          <label class="row">しきい値 <input type="range" id="thr" min="80" max="250" value="190"> <span id="thrV">190</span></label>
+          <label><input type="checkbox" id="inv"> 白黒反転（文字が暗い場合）</label>
+        </div>
+      </div>
+      <div class="hint">
+        ① で「ドラゴンクエストX」のウィンドウ（うまく映らなければ画面全体）を選びます。<br>
+        プレビュー上で、ゲームの<b>残り時間の数字</b>をドラッグで囲みます（範囲は保存されます）。<br>
+        右のプレビューが<b>白地に黒い数字</b>になるようしきい値を調整してください。数字が読めると自動でスタートし、以後は常に合わせ続けます。
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h2>通知設定</h2>
+      <div class="settings">
+        <label><input type="checkbox" id="optVoice" checked> 音声読み上げ</label>
+        <label><input type="checkbox" id="optBeep" checked> ビープ音</label>
+        <label class="row">予告 <select id="optLead"><option>3</option><option selected>5</option><option>8</option><option>10</option><option>15</option></select> 秒前</label>
+        <label class="row">音量 <input type="range" id="optVol" min="0" max="1" step="0.05" value="0.8"></label>
+        <label><input type="checkbox" data-kind="rush" checked> ジュエルラッシュ</label>
+        <label><input type="checkbox" data-kind="bonus" checked> ボーナスジュエル</label>
+        <label><input type="checkbox" data-kind="golem" checked> 援軍玉</label>
+        <label><input type="checkbox" data-kind="tip" checked> 終盤メモ</label>
+      </div>
+      <div class="btns"><button id="testBtn">音のテスト</button></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>タイムライン（残り時間）</h2>
+    <div class="legend">
+      <span><i class="c-rush"></i>ジュエルラッシュ</span>
+      <span><i class="c-bonus"></i>ボーナスジュエル</span>
+      <span><i class="c-golem"></i>援軍玉</span>
+      <span><i class="c-tip"></i>戦術メモ</span>
+    </div>
+    <ul class="tl" id="tl"></ul>
+    <div class="src">
+      出典：<a href="https://dragon-quest.jp/ten/system/trinity/info.php">攻略の虎</a> /
+      <a href="https://dq10-trinity.com/battle-trinity/examine/summary-examine-jewel">dq10-trinity.com</a> /
+      <a href="https://xn--10-yg4a1a3kyh.jp/dq10_trinity.html">ドラクエ10極限攻略</a>。
+      ジュエルラッシュは約35秒（±5秒）間隔の目安で、後半ほどずれやすい。ボーナスジュエル・援軍玉は固定時刻。
+    </div>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script>
+const TOTAL = 330;
+// t = 残り秒
+const EVENTS = [
+  {t:330,kind:'rush', name:'ジュエルラッシュ①', say:'ジュエル', note:'試合開始直後。中央に多く湧く'},
+  {t:295,kind:'rush', name:'ジュエルラッシュ②', say:'ジュエル', note:'目安'},
+  {t:270,kind:'bonus',name:'ボーナスジュエル（中央）', say:'ボーナスジュエル、中央', note:'8点＋試合後の景品'},
+  {t:260,kind:'rush', name:'ジュエルラッシュ③', say:'ジュエル', note:'目安'},
+  {t:240,kind:'golem',name:'援軍玉', say:'援軍玉', note:'1位の前にゴーレム、2・3位の前にばくだんいわ'},
+  {t:225,kind:'rush', name:'ジュエルラッシュ④', say:'ジュエル', note:'目安'},
+  {t:210,kind:'bonus',name:'ボーナスジュエル（外周）', say:'ボーナスジュエル、外周', note:'8点＋試合後の景品'},
+  {t:190,kind:'rush', name:'ジュエルラッシュ⑤', say:'ジュエル', note:'目安（±5秒）'},
+  {t:155,kind:'rush', name:'ジュエルラッシュ⑥', say:'ジュエル', note:'目安（±5秒）'},
+  {t:150,kind:'bonus',name:'ボーナスジュエル（中央）', say:'ボーナスジュエル、中央', note:'援軍玉と同時'},
+  {t:150,kind:'golem',name:'援軍玉', say:'援軍玉', note:'ゴーレム／ばくだんいわ'},
+  {t:120,kind:'rush', name:'ジュエルラッシュ⑦', say:'ジュエル', note:'目安（±5秒）'},
+  {t:90, kind:'bonus',name:'ボーナスジュエル（外周）', say:'ボーナスジュエル、外周', note:'8点＋試合後の景品'},
+  {t:85, kind:'rush', name:'ジュエルラッシュ⑧', say:'ジュエル', note:'目安（±5秒）'},
+  {t:60, kind:'golem',name:'援軍玉（最後）', say:'最後の援軍玉', note:'終盤のトライロック争奪に直結'},
+  {t:50, kind:'rush', name:'ジュエルラッシュ⑨（最後）', say:'最後のジュエル', note:'目安（±5秒）'},
+  {t:30, kind:'bonus',name:'ボーナスジュエル（中央・最後）', say:'最後のボーナスジュエル、中央', note:'8点＋試合後の景品'},
+  {t:20, kind:'tip',  name:'トライロック確保', say:'トライロック確保', note:'終了時に占有中のトライロックのレベルに応じてボーナス点'},
+  {t:0,  kind:'end',  name:'試合終了', say:'試合終了', note:''},
+];
+EVENTS.forEach((e,i)=>e.id=i);
+
+const $ = id=>document.getElementById(id);
+const fmt = s=>{ s=Math.max(0,Math.ceil(s)); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); };
+
+let running=false, endAt=0, remain=TOTAL, lastRemain=TOTAL;
+const enabled = {rush:true,bonus:true,golem:true,tip:true,end:true};
+let audioCtx=null;
+
+// load settings
+try{
+  const s=JSON.parse(localStorage.getItem('trinityTimer')||'{}');
+  if(s.voice!==undefined) $('optVoice').checked=s.voice;
+  if(s.beep!==undefined) $('optBeep').checked=s.beep;
+  if(s.lead) $('optLead').value=s.lead;
+  if(s.vol!==undefined) $('optVol').value=s.vol;
+  if(s.kinds) Object.assign(enabled,s.kinds);
+}catch(e){}
+document.querySelectorAll('[data-kind]').forEach(cb=>{
+  cb.checked = enabled[cb.dataset.kind];
+  cb.addEventListener('change',()=>{enabled[cb.dataset.kind]=cb.checked;save();renderTL();});
+});
+['optVoice','optBeep','optLead','optVol'].forEach(id=>$(id).addEventListener('change',save));
+function save(){
+  try{localStorage.setItem('trinityTimer',JSON.stringify({voice:$('optVoice').checked,beep:$('optBeep').checked,lead:$('optLead').value,vol:$('optVol').value,kinds:enabled}));}catch(e){}
+}
+const lead=()=>+$('optLead').value;
+
+// ---------- sound ----------
+function ensureAudio(){
+  try{ if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)(); if(audioCtx.state==='suspended') audioCtx.resume(); }catch(e){}
+}
+function beep(freq=880,dur=0.12,count=1,gap=0.08){
+  if(!$('optBeep').checked||!audioCtx) return;
+  const vol=+$('optVol').value*0.4;
+  for(let i=0;i<count;i++){
+    const t=audioCtx.currentTime+i*(dur+gap);
+    const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+    o.type='square'; o.frequency.value=freq;
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol,t+0.01); g.gain.linearRampToValueAtTime(0,t+dur);
+    o.connect(g).connect(audioCtx.destination); o.start(t); o.stop(t+dur+0.02);
+  }
+}
+let jaVoice=null;
+function pickVoice(){ try{ const v=speechSynthesis.getVoices(); jaVoice=v.find(x=>x.lang&&x.lang.startsWith('ja'))||null; }catch(e){} }
+try{ pickVoice(); speechSynthesis.onvoiceschanged=pickVoice; }catch(e){}
+function say(text){
+  if(!$('optVoice').checked) return;
+  try{
+    speechSynthesis.cancel();
+    const u=new SpeechSynthesisUtterance(text); u.lang='ja-JP'; if(jaVoice) u.voice=jaVoice;
+    u.rate=1.15; u.volume=+$('optVol').value; speechSynthesis.speak(u);
+  }catch(e){}
+}
+
+// ---------- timeline ----------
+function activeEvents(){ return EVENTS.filter(e=>enabled[e.kind]); }
+function renderTL(){
+  const ul=$('tl'); ul.innerHTML='';
+  const nxt=nextEvent();
+  EVENTS.forEach(e=>{
+    const li=document.createElement('li');
+    if(!enabled[e.kind]) li.classList.add('off');
+    if(e.t>remain+0.001 && (running||remain<TOTAL)) li.classList.add('done');
+    if(nxt && nxt.t===e.t) li.classList.add('cur');
+    li.innerHTML=`<span class="t">${fmt(e.t)}</span><span class="dot c-${e.kind}"></span><span class="d">${e.name}${e.note?`<small>${e.note}</small>`:''}</span>`;
+    ul.appendChild(li);
+  });
+  const cur=ul.querySelector('.cur'); if(cur&&running) cur.scrollIntoView({block:'nearest',behavior:'smooth'});
+}
+function nextEvent(){
+  const list=activeEvents().filter(e=>e.t<remain-0.001 || (e.t===TOTAL && remain>=TOTAL && !running && false));
+  return list.length?list[0]:null;
+}
+function eventsAt(t){ return activeEvents().filter(e=>e.t===t); }
+
+// ---------- core ----------
+function tick(){
+  if(running){
+    remain=Math.max(0,(endAt-performance.now())/1000);
+    checkAlerts(lastRemain,remain);
+    lastRemain=remain;
+    if(remain<=0){ running=false; updateBtn(); }
+  }
+  draw();
+}
+const firedPre=new Set(), firedOn=new Set();
+function checkAlerts(prev,now){
+  const L=lead();
+  const times=[...new Set(activeEvents().map(e=>e.t))];
+  for(const t of times){
+    if(t>=TOTAL) continue;
+    // pre-alert
+    const p=t+L;
+    if(t>0 && !firedPre.has(t) && prev>p && now<=p){
+      firedPre.add(t);
+      const evs=eventsAt(t);
+      beep(660,0.1,2);
+      setTimeout(()=>say(`${L}秒後、`+evs.map(e=>e.say).join('と')),250);
+    }
+    if(!firedOn.has(t) && prev>t && now<=t){
+      firedOn.add(t);
+      const evs=eventsAt(t);
+      beep(t===0?440:1046,t===0?0.5:0.15,t===0?1:1);
+      setTimeout(()=>say(evs.map(e=>e.say).join('、')),200);
+      const n=$('next'); n.classList.remove('flash'); void n.offsetWidth; n.classList.add('flash');
+    }
+  }
+}
+let lastTLKey='';
+function draw(){
+  $('clock').textContent=fmt(remain);
+  $('clock').className='clock'+(remain<=0?' end':remain<=30?' warn':'');
+  $('prog').style.width=((TOTAL-remain)/TOTAL*100)+'%';
+  const n=nextEvent();
+  if(n){
+    const same=eventsAt(n.t);
+    $('nextCd').textContent=Math.ceil(remain-n.t)+'s';
+    $('nextLbl').textContent=same.map(e=>e.name).join(' ＋ ');
+    $('nextMeta').textContent='残り '+fmt(n.t)+(same[0].note?'　'+same.map(e=>e.note).filter(Boolean).join(' / '):'');
+  }else{
+    $('nextCd').textContent='--'; $('nextLbl').textContent=remain<=0?'お疲れさまでした':'次のイベントなし'; $('nextMeta').textContent='';
+  }
+  $('status').textContent = running?'計測中': remain>=TOTAL?'試合開始と同時にスタート（Space）': remain<=0?'終了':'一時停止中';
+  const key=Math.ceil(remain)+'|'+running+'|'+JSON.stringify(enabled);
+  if(key!==lastTLKey){ lastTLKey=key; renderTL(); }
+}
+function start(){
+  ensureAudio();
+  if(remain<=0) resetAll();
+  endAt=performance.now()+remain*1000; lastRemain=remain; running=true; updateBtn();
+  if(remain>=TOTAL-0.01) { beep(1046,0.15,1); say('スタート'); }
+  requestWake();
+}
+function pause(){ running=false; updateBtn(); }
+function toggle(){ running?pause():start(); }
+function setRemain(sec, silent=true){
+  remain=Math.min(TOTAL,Math.max(0,sec));
+  // 同期時は、すでに過ぎたイベントは鳴らさない／これからのイベントは再度鳴るようにする
+  firedPre.clear(); firedOn.clear();
+  for(const t of new Set(EVENTS.map(e=>e.t))){
+    if(t>=remain) firedOn.add(t);
+    if(t+lead()>=remain) firedPre.add(t);
+  }
+  if(running) endAt=performance.now()+remain*1000;
+  lastRemain=remain; draw();
+}
+function resetAll(){ running=false; firedPre.clear(); firedOn.clear(); remain=TOTAL; lastRemain=TOTAL; updateBtn(); lastTLKey=''; draw(); }
+function updateBtn(){ const b=$('startBtn'); b.textContent=running?'一時停止':(remain<TOTAL&&remain>0?'再開':'スタート'); b.classList.toggle('running',running); }
+
+function parseTime(v){
+  v=v.trim(); if(!v) return null;
+  let m,s;
+  if(v.includes(':')){ [m,s]=v.split(':').map(Number); }
+  else if(/^\d+$/.test(v)){ if(v.length<=2){m=0;s=+v;} else {m=+v.slice(0,-2);s=+v.slice(-2);} }
+  else return null;
+  if(isNaN(m)||isNaN(s)) return null;
+  return m*60+s;
+}
+function doSync(){
+  const t=parseTime($('syncIn').value); if(t==null) return;
+  ensureAudio();
+  setRemain(t);
+  if(!running) start();
+  $('syncIn').value=''; $('syncIn').blur();
+}
+
+let wakeLock=null;
+async function requestWake(){ try{ if('wakeLock' in navigator && !wakeLock){ wakeLock=await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release',()=>wakeLock=null);} }catch(e){} }
+
+$('startBtn').onclick=toggle;
+$('reset').onclick=resetAll;
+$('minus').onclick=()=>setRemain(remain-1);
+$('plus').onclick=()=>setRemain(remain+1);
+$('syncBtn').onclick=doSync;
+$('syncIn').addEventListener('keydown',e=>{ if(e.key==='Enter') doSync(); e.stopPropagation(); });
+$('testBtn').onclick=()=>{ ensureAudio(); beep(660,0.1,2); setTimeout(()=>say('5秒後、ボーナスジュエル、中央'),250); };
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT') return;
+  if(e.code==='Space'){ e.preventDefault(); toggle(); }
+  else if(e.key==='ArrowLeft'){ setRemain(remain+1); }
+  else if(e.key==='ArrowRight'){ setRemain(remain-1); }
+  else if(e.key==='r'||e.key==='R'){ resetAll(); }
+  else if(e.key==='s'||e.key==='S'){ e.preventDefault(); $('syncIn').focus(); }
+});
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&running) requestWake(); });
+
+
+// ================= 自動同期（画面キャプチャ＋OCR） =================
+const video=document.createElement('video'); video.muted=true; video.playsInline=true;
+let stream=null, region=null, worker=null, ocrBusy=false, selecting=false;
+let lastRead=null, lastReadAt=0, pendingJump=null, missCount=0;
+try{ region=JSON.parse(localStorage.getItem('trinityRegion')||'null'); }catch(e){}
+try{ const t=localStorage.getItem('trinityThr'); if(t){$('thr').value=t;} $('inv').checked=localStorage.getItem('trinityInv')==='1'; }catch(e){}
+$('thrV').textContent=$('thr').value;
+$('thr').oninput=()=>{ $('thrV').textContent=$('thr').value; try{localStorage.setItem('trinityThr',$('thr').value);}catch(e){} };
+$('inv').onchange=()=>{ try{localStorage.setItem('trinityInv',$('inv').checked?'1':'0');}catch(e){} };
+
+function setState(txt,cls){ const p=$('ocrState'); p.textContent=txt; p.className='pill'+(cls?' '+cls:''); }
+
+// バックグラウンドでタイマーが間引かれないよう、無音の音を流し続ける
+let keepAlive=null;
+function startKeepAlive(){
+  ensureAudio(); if(!audioCtx||keepAlive) return;
+  const o=audioCtx.createOscillator(), g=audioCtx.createGain(); g.gain.value=0.0001;
+  o.connect(g).connect(audioCtx.destination); o.start(); keepAlive=o;
+}
+
+$('capBtn').onclick=async()=>{
+  ensureAudio(); startKeepAlive();
+  try{
+    stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:10},audio:false});
+  }catch(e){ setState('共有がキャンセルされました','ng'); return; }
+  video.srcObject=stream; await video.play();
+  stream.getVideoTracks()[0].addEventListener('ended',()=>{ stream=null; $('capWrap').style.display='none'; setState('共有終了','ng'); });
+  $('capWrap').style.display='block'; $('selBtn').disabled=false;
+  setState('OCR準備中…');
+  if(!worker){
+    try{
+      worker=await Tesseract.createWorker('eng');
+      await worker.setParameters({tessedit_char_whitelist:'0123456789:', tessedit_pageseg_mode:'7'});
+    }catch(e){ setState('OCRの読み込みに失敗','ng'); console.error(e); return; }
+  }
+  setState(region?'読み取り中':'残り時間の範囲をドラッグで選んでください', region?'':'ng');
+  if(!region) selecting=true;
+  drawPreview();
+};
+$('selBtn').onclick=()=>{ selecting=true; setState('残り時間の範囲をドラッグで選んでください','ng'); };
+
+// プレビュー描画＆範囲選択
+const cap=$('capCanvas'), cctx=cap.getContext('2d');
+function drawPreview(){
+  if(!stream) return;
+  if(video.videoWidth){
+    const w=Math.min(1280,video.videoWidth), h=Math.round(w*video.videoHeight/video.videoWidth);
+    if(cap.width!==w){cap.width=w;cap.height=h;}
+    cctx.drawImage(video,0,0,w,h);
+    if(region && !dragStart){
+      cctx.strokeStyle='#f2c14e'; cctx.lineWidth=3;
+      cctx.strokeRect(region.x*w,region.y*h,region.w*w,region.h*h);
+    }
+  }
+  setTimeout(()=>requestAnimationFrame(drawPreview),200);
+}
+let dragStart=null;
+const wrap=$('capWrap'), box=$('selBox');
+function relPos(e){ const r=cap.getBoundingClientRect(); return {x:Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)), y:Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))}; }
+wrap.addEventListener('mousedown',e=>{ if(!selecting) return; dragStart=relPos(e); box.style.display='block'; updBox(dragStart,dragStart); });
+wrap.addEventListener('mousemove',e=>{ if(dragStart) updBox(dragStart,relPos(e)); });
+window.addEventListener('mouseup',e=>{
+  if(!dragStart) return; const p=relPos(e);
+  const r={x:Math.min(dragStart.x,p.x),y:Math.min(dragStart.y,p.y),w:Math.abs(p.x-dragStart.x),h:Math.abs(p.y-dragStart.y)};
+  dragStart=null; box.style.display='none';
+  if(r.w<0.005||r.h<0.005) return;
+  region=r; selecting=false; try{localStorage.setItem('trinityRegion',JSON.stringify(r));}catch(e){}
+  setState('読み取り中');
+});
+function updBox(a,b){
+  const r=cap.getBoundingClientRect();
+  box.style.left=Math.min(a.x,b.x)*r.width+'px'; box.style.top=Math.min(a.y,b.y)*r.height+'px';
+  box.style.width=Math.abs(b.x-a.x)*r.width+'px'; box.style.height=Math.abs(b.y-a.y)*r.height+'px';
+}
+
+// 切り出し→2値化→OCR
+const crop=$('cropCanvas'), kctx=crop.getContext('2d',{willReadFrequently:true});
+async function ocrLoop(){
+  if(stream && region && worker && !ocrBusy && video.videoWidth){
+    ocrBusy=true;
+    try{
+      const sx=region.x*video.videoWidth, sy=region.y*video.videoHeight, sw=region.w*video.videoWidth, sh=region.h*video.videoHeight;
+      const scale=Math.max(1,Math.min(4,60/sh));
+      crop.width=Math.round(sw*scale)+20; crop.height=Math.round(sh*scale)+20;
+      kctx.fillStyle='#000'; kctx.fillRect(0,0,crop.width,crop.height);
+      kctx.drawImage(video,sx,sy,sw,sh,10,10,sw*scale,sh*scale);
+      const img=kctx.getImageData(0,0,crop.width,crop.height), d=img.data, thr=+$('thr').value, inv=$('inv').checked;
+      for(let i=0;i<d.length;i+=4){
+        const lum=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
+        let on=lum>=thr; if(inv) on=!on;
+        const v=on?0:255; d[i]=d[i+1]=d[i+2]=v;
+      }
+      kctx.putImageData(img,0,0);
+      const {data}=await worker.recognize(crop);
+      handleRead(parseRead(data.text), data.confidence);
+    }catch(e){ console.error(e); }
+    ocrBusy=false;
+  }
+  setTimeout(ocrLoop,250);
+}
+function parseRead(txt){
+  const dg=(txt||'').replace(/[^0-9]/g,'');
+  if(dg.length!==3) return null;
+  const m=+dg[0], s=+dg.slice(1);
+  if(s>59) return null;
+  const t=m*60+s;
+  return t<=TOTAL?t:null;
+}
+function handleRead(v,conf){
+  const now=performance.now();
+  if(v==null){
+    $('ocrVal').textContent='--';
+    missCount++;
+    if(missCount>12 && remain<=0.5) setState('待機中（次の試合を待っています）');
+    else if(missCount>4) setState('数字が読めません','ng');
+    return;
+  }
+  missCount=0;
+  $('ocrVal').textContent=fmt(v);
+  setState('読み取りOK','ok');
+  if(!$('autoOn').checked){ lastRead=v; return; }
+  const est=v+0.5; // 表示は1秒単位なので中央値で合わせる
+  const diff=Math.abs(est-remain);
+
+  // 大きく食い違う値は、2回連続で同じなら採用（誤読対策）
+  if(diff>3 && (running || remain<TOTAL)){
+    if(pendingJump===v || pendingJump===v+1){ pendingJump=null; applySync(v,est); }
+    else pendingJump=v;
+    lastRead=v; return;
+  }
+  pendingJump=null;
+  if(!running){
+    // 試合開始（または途中から）を検知して自動スタート
+    if(lastRead!=null && (lastRead===v || lastRead===v+1)) applySync(v,est);
+  }else if(lastRead!=null && lastRead===v+1){
+    // 数字が切り替わった瞬間が最も正確
+    if(Math.abs((v+1)-remain)>0.15) setRemain(v+1);
+  }else if(diff>1.2){
+    setRemain(est);
+  }
+  lastRead=v; lastReadAt=now;
+}
+function applySync(v,est){
+  if(v>=TOTAL-1 && remain<=0.5){ resetAll(); }
+  if(!running){ ensureAudio(); setRemain(est); start(); }
+  else setRemain(est);
+}
+ocrLoop();
+
+setInterval(tick,100);
+resetAll();
+</script>
+</body>
+</html>
