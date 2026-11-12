@@ -4,6 +4,8 @@
 
 **▶ 使う: https://lepanda-tools.github.io/trinity-timer/**
 
+**📖 使い方ガイド: https://lepanda-tools.github.io/trinity-timer/guide.html**
+
 ## できること
 - ボーナスジュエル・援軍玉・ジュエルラッシュの出現を、数秒前と発生時に音声とビープでお知らせ
 - ゲーム画面を共有すると、残り時間の数字を読み取って自動スタート・自動同期（PC版向け、Chrome / Edge）
